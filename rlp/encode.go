@@ -24,6 +24,7 @@ import (
 	"sync"
 )
 
+// 首先定义了空字符串和空List的值，分别是 0x80和0xC0。
 var (
 	// Common encoded values.
 	// These are useful when implementing EncodeRLP.
@@ -51,7 +52,7 @@ type Encoder interface {
 //
 // Please see package-level documentation of encoding rules.
 func Encode(w io.Writer, val interface{}) error {
-	if outer, ok := w.(*encbuf); ok {
+	if outer, ok := w.(*encbuf); ok { // SZA 这是一个接口的类型断言
 		// Encode was called by some type's EncodeRLP.
 		// Avoid copying by writing to the outer encbuf directly.
 		return outer.encode(val)
@@ -148,6 +149,9 @@ func (w *encbuf) Write(b []byte) (int, error) {
 }
 
 func (w *encbuf) encode(val interface{}) error {
+	// 1. 获取类型的反射类型
+	// 2. 根据反射类型获取它的编码器
+	// 3. 然后调用编码器的writer方法
 	rval := reflect.ValueOf(val)
 	writer, err := cachedWriter(rval.Type())
 	if err != nil {
@@ -324,6 +328,7 @@ var encoderInterface = reflect.TypeOf(new(Encoder)).Elem()
 
 // makeWriter creates a writer function for the given type.
 func makeWriter(typ reflect.Type, ts tags) (writer, error) {
+	// 根据类型, 返回编码函数
 	kind := typ.Kind()
 	switch {
 	case typ == rawValueType:

@@ -34,7 +34,15 @@ package trie
 // in the case of an odd number. All remaining nibbles (now an even number) fit properly
 // into the remaining bytes. Compact encoding is used for nodes stored on disk.
 
+// hex编码转化为compact编码
 func hexToCompact(hex []byte) []byte {
+	// 1. 判断hex是否带有终止符, 有则terminator=1, 否则=0
+	// 2. 创建compact编码缓存buf, 大小等于hex的长度*2-1
+	// 3. buf[0].5保存terminator左移5位
+	// 4. 如果hex的长度是奇数,buf[0].4=0; 偶数buf[0].4=1
+	// 5. 调用decodeNibbles(), 把半字节转化到全字节
+	//buf[0]的第一个半字节的低2bit分别保存终止符标志和奇偶标志
+
 	terminator := byte(0)
 	if hasTerm(hex) {
 		terminator = 1
@@ -94,6 +102,7 @@ func compactToHex(compact []byte) []byte {
 	return base[chop:]
 }
 
+// keybytes编码转化到hex编码
 func keybytesToHex(str []byte) []byte {
 	l := len(str)*2 + 1
 	var nibbles = make([]byte, l)
@@ -120,6 +129,7 @@ func hexToKeybytes(hex []byte) []byte {
 }
 
 func decodeNibbles(nibbles []byte, bytes []byte) {
+	// 把半字节切片数据转化为全字节数据 nibbles => bytes
 	for bi, ni := 0, 0; ni < len(nibbles); bi, ni = bi+1, ni+2 {
 		bytes[bi] = nibbles[ni]<<4 | nibbles[ni+1]
 	}

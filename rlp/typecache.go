@@ -25,7 +25,7 @@ import (
 )
 
 // typeinfo is an entry in the type cache.
-type typeinfo struct {
+type typeinfo struct { //存储了编码器和解码器函数
 	decoder    decoder
 	decoderErr error // error from makeDecoder
 	writer     writer
@@ -64,6 +64,12 @@ type writer func(reflect.Value, *encbuf) error
 
 var theTC = newTypeCache()
 
+// 1. atomic.Value 相当于一个容器，
+//    可以被用来“原子地”存储（Store）和加载（Load）任意类型的值
+// 2. sync.Mutex 互斥锁
+// 3. map[类型->编解码器函数]
+//    Map的key是类型，value是对应的编码和解码器。
+//    typekey:类型 *typeinfo:编码器和解码器
 type typeCache struct {
 	cur atomic.Value
 
@@ -78,17 +84,28 @@ func newTypeCache() *typeCache {
 	return c
 }
 
+// 用户如何获得解码器
 func cachedDecoder(typ reflect.Type) (decoder, error) {
 	info := theTC.info(typ)
 	return info.decoder, info.decoderErr
 }
 
+// 用户如何获得编码器
 func cachedWriter(typ reflect.Type) (writer, error) {
 	info := theTC.info(typ)
 	return info.writer, info.writerErr
 }
 
+// 这是一种结构体的方法和接收者
+// info方法的接收者是typeCache结构体
 func (c *typeCache) info(typ reflect.Type) *typeinfo {
+	//
+	// 1. Load()加载最近一次存储在(atomic.Value)的数据
+	// 2. 加载的数据转换成map[typekey]*typeinfo类型
+	// 3. 根据key获取map内的typeinfo
+	// 4. 如果info已存在, 那么直接返回
+	// 5. 否则调用generate()创建编码器和解码器
+
 	key := typekey{Type: typ}
 	if info := c.cur.Load().(map[typekey]*typeinfo)[key]; info != nil {
 		return info
@@ -99,6 +116,8 @@ func (c *typeCache) info(typ reflect.Type) *typeinfo {
 }
 
 func (c *typeCache) generate(typ reflect.Type, tags tags) *typeinfo {
+	// 1. 互斥锁保存, 退出时解锁
+	// 2. 和info()函数一样, 如果在其他线程中已经创建成功, 那么直接返回
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -106,16 +125,18 @@ func (c *typeCache) generate(typ reflect.Type, tags tags) *typeinfo {
 	if info := cur[typekey{typ, tags}]; info != nil {
 		return info
 	}
-
+	// 3. 拷贝当前的typeCache到c.next
 	// Copy cur to next.
 	c.next = make(map[typekey]*typeinfo, len(cur)+1)
 	for k, v := range cur {
 		c.next[k] = v
 	}
-
+	// 4. 生成类型对应的编码器和解码器
 	// Generate.
 	info := c.infoWhileGenerating(typ, tags)
 
+	// 5. 把next复制到atomic.Value内
+	// 6. 返回包含解码器和编码器的info
 	// next -> cur
 	c.cur.Store(c.next)
 	c.next = nil
@@ -123,6 +144,8 @@ func (c *typeCache) generate(typ reflect.Type, tags tags) *typeinfo {
 }
 
 func (c *typeCache) infoWhileGenerating(typ reflect.Type, tags tags) *typeinfo {
+	// 1. 如果在其他线程中info已经创建成功, 那么直接返回
+
 	key := typekey{typ, tags}
 	if info := c.next[key]; info != nil {
 		return info
@@ -130,6 +153,7 @@ func (c *typeCache) infoWhileGenerating(typ reflect.Type, tags tags) *typeinfo {
 	// Put a dummy value into the cache before generating.
 	// If the generator tries to lookup itself, it will get
 	// the dummy value and won't call itself recursively.
+	// 2. 调用typeinfo结构体的generate方法函数，创建编码器和解码器
 	info := new(typeinfo)
 	c.next[key] = info
 	info.generate(typ, tags)

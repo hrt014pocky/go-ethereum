@@ -80,6 +80,10 @@ func (t *Trie) newFlag() nodeFlag {
 // New will panic if db is nil and returns a MissingNodeError if root does
 // not exist in the database. Accessing the trie loads nodes from db on demand.
 func New(root common.Hash, db *Database) (*Trie, error) {
+	// 1. 如果数据库不存在就报panic
+	// 2. 创建tire结构体, 导入数据库db, 加载整颗Trie树
+	// 3. 从数据库中查找根节点
+	// 4. 如果数据库内不包含root, 报MissingNodeError
 	if db == nil {
 		panic("trie.New called without a database")
 	}
@@ -283,6 +287,11 @@ func (t *Trie) TryUpdate(key, value []byte) error {
 	return nil
 }
 
+// Trie树的插入
+// node: 当前插入的节点
+// prefix: 当前已经处理完的部分key
+// key: 还没有处理玩的部分key
+// value: 需要插入的值
 func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error) {
 	if len(key) == 0 {
 		if v, ok := n.(valueNode); ok {
@@ -290,6 +299,7 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 		}
 		return true, value, nil
 	}
+
 	switch n := n.(type) {
 	case *shortNode:
 		matchlen := prefixLen(key, n.Key)

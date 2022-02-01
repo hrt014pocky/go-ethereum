@@ -32,6 +32,12 @@ type node interface {
 	cache() (hashNode, bool)
 }
 
+// fullNode: 分支节点（Branch Node）
+// shortNode: 扩展节点和叶子节点（Extension Node、Leaf Node）
+// shortNode.Val 判断是扩展节点还是叶子节点
+// shortNode.Val为valueNode，当前节点是叶子节点
+// shortNode.Val指向下一个node,当前节点是拓展节点
+
 type (
 	fullNode struct {
 		Children [17]node // Actual trie node data to encode/decode (needs custom encoder)
